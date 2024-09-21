@@ -1,0 +1,8 @@
+session_name: 3-pane-vertical
+windows:
+  - window_name: notebook_engine
+    shell_command_before: nix develop
+    panes:
+      - nvim
+      - echo hello
+      - echo hello

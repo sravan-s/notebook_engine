@@ -7,7 +7,18 @@ Add the following to ~/.config/nix/nix.conf or /etc/nix/nix.conf:
 experimental-features = nix-command flakes
 ```
 
-To start dev enviornment ->
+---
+If you use tmux for development ->
+```
+tmuxp load .
+```
+
+To start dev enviornment(nix shell) ->
 ```
 nix devlop
+```
+
+To build -> Open nix shell ->
+```
+go build -o ./notebook-engine.bin ./src/index.go
 ```

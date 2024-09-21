@@ -18,9 +18,19 @@
             pkgs.firecracker
           ];
 
-          shellHook = ''
-            echo hello
-          '';
+          # shellHook = ''
+          #   echo hello
+          # '';
         };
+    # packages.${system}.default = pkgs.stdenv.mkDerivation {
+    #   name = "notebook-engine";
+    #   version = "0.0.0";
+    #   system = system;
+    #   dontUnpack = true;
+    #   buildInputs = [ pkgs.go ];
+    #   buildPhase = ''
+    #     go build -o ./notebook-engine.bin ./src/index.go
+    #   '';
+    # };
   };
 }
