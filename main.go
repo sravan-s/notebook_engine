@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -12,6 +13,7 @@ import (
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	e := echo.New()
+	appState := initTaskManager()
 
 	e.GET("/", func(c echo.Context) error {
 		log.Info().Msg("Recived healthcheck")
@@ -26,32 +28,65 @@ func main() {
 		}
 		log.Printf("Recived task: %#v", task)
 		switch task.Action {
-		case "CREATE_VM":
+		case string(CREATE_VM):
 			log.Info().Msg("CREATE_VM case")
 			vm_payload, err := parseCreateVmPayload(task.Payload)
 			if err != nil {
 				log.Error().Msgf("CREATE_VM parse error: %v", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, err)
 			}
-			log.Info().Msgf("%v", vm_payload)
+			appTask := Task{
+				Id:           time.Now().UnixNano(),
+				Action:       CREATE_VM,
+				notebook_id:  vm_payload.NotebookId,
+				paragraph_id: "",
+				code:         "",
+			}
+			err_add_queue := appState.addTask(appTask)
+			if err_add_queue != nil {
+				log.Error().Msgf("CREATE_VM addTask error: %v", err_add_queue)
+				return echo.NewHTTPError(http.StatusInternalServerError, err_add_queue)
+			}
 
-		case "STOP_VM":
+		case string(STOP_VM):
 			log.Info().Msg("STOP_VM case")
 			vm_payload, err := parseStopVmPayload(task.Payload)
 			if err != nil {
 				log.Error().Msgf("STOP_VM parse error: %v", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, err)
 			}
-			log.Info().Msgf("%v", vm_payload)
+			appTask := Task{
+				Id:           time.Now().UnixNano(),
+				Action:       STOP_VM,
+				notebook_id:  vm_payload.NotebookId,
+				paragraph_id: "",
+				code:         "",
+			}
+			err_add_queue := appState.addTask(appTask)
+			if err_add_queue != nil {
+				log.Error().Msgf("STOP_VM addTask error: %v", err_add_queue)
+				return echo.NewHTTPError(http.StatusInternalServerError, err_add_queue)
+			}
 
-		case "RUN_PARAGRAPH":
+		case string(RUN_PARAGRAPH):
 			log.Info().Msg("RUN_PARAGRAPH case")
 			vm_payload, err := parseRunParagraph(task.Payload)
 			if err != nil {
 				log.Error().Msgf("RUN_PARAGRAPH parse error: %v", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, err)
 			}
-			log.Info().Msgf("%v", vm_payload)
+			appTask := Task{
+				Id:           time.Now().UnixNano(),
+				Action:       RUN_PARAGRAPH,
+				notebook_id:  vm_payload.NotebookId,
+				paragraph_id: vm_payload.ParagraphId,
+				code:         vm_payload.Code,
+			}
+			err_add_queue := appState.addTask(appTask)
+			if err_add_queue != nil {
+				log.Error().Msgf("RUN_PARAGRAPH addTask error: %v", err_add_queue)
+				return echo.NewHTTPError(http.StatusInternalServerError, err_add_queue)
+			}
 
 		default:
 			log.Error().Msgf("unknown action: %s", task.Action)
