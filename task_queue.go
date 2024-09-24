@@ -59,7 +59,8 @@ func (tm *TaskManager) addTask(task Task) error {
 			errorMsg := fmt.Sprintf("notebook with id %v is not running", task.notebook_id)
 			return errors.New(errorMsg)
 		}
-		delete(tm.TaskQueue, task.notebook_id)
+		tm.TaskQueue[task.notebook_id] = append(tm.TaskQueue[task.notebook_id], task)
+		tm.PriorityQueue = append(tm.PriorityQueue, task.notebook_id)
 		return nil
 	case RUN_PARAGRAPH:
 		log.Info().Msgf("adding %v to RUN_PARAGRAPH queue", task)
