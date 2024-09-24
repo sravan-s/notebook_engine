@@ -15,6 +15,7 @@ func main() {
 	e := echo.New()
 	appState := initTaskManager()
 
+  go appState.process()
 	e.GET("/", func(c echo.Context) error {
 		log.Info().Msg("Recived healthcheck")
 		return c.String(http.StatusOK, "Service is up")
