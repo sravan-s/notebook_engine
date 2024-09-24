@@ -117,16 +117,14 @@ func findNextFreeNotebookIdx(tm TaskManager) int {
 func (tm *TaskManager) process() error {
 	for {
 		// uncomment if event loop needs to run in intervals
-		// time.Sleep(10 * time.Millisecond)
+		// time.Sleep(5000 * time.Millisecond)
 		if len(tm.PriorityQueue) == 0 {
-			log.Info().Msgf("/n/n appState %v", tm)
-			log.Info().Msg("PriorityQueue is empty")
 			continue
 		}
 
 		notebook_index := findNextFreeNotebookIdx(*tm)
 		if notebook_index == -1 {
-			log.Info().Msg("all notebooks are busy")
+			// log.Info().Msg("all notebooks are busy")
 			continue
 		}
 
@@ -139,7 +137,7 @@ func (tm *TaskManager) process() error {
 			log.Info().Msgf("notebook: %v TaskQueue is not present", current_notebook)
 			continue
 		}
-		if len(current_notebook_queue) > 0 {
+		if len(current_notebook_queue) < 1 {
 			log.Info().Msgf("notebook: %v TaskQueue is empty", current_notebook)
 			continue
 		}
@@ -165,19 +163,19 @@ func (tm *TaskManager) process() error {
 }
 
 func doStartVM(tm *TaskManager, task Task) {
-	time.Sleep(5000)
+	time.Sleep(5000 * time.Millisecond)
 	tm.BusyQueue[task.notebook_id] = false
 	log.Info().Msgf("%v created", task)
 }
 
 func doStopVM(tm *TaskManager, task Task) {
-	time.Sleep(500)
+	time.Sleep(500 * time.Millisecond)
 	tm.BusyQueue[task.notebook_id] = false
 	log.Info().Msgf("%v deleted", task)
 }
 
 func doRunParagraph(tm *TaskManager, task Task) {
-	time.Sleep(2000)
+	time.Sleep(2000 * time.Millisecond)
 	tm.BusyQueue[task.notebook_id] = false
 	log.Info().Msgf("%v RAN", task)
 }
