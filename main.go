@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -15,10 +16,20 @@ func main() {
 	e := echo.New()
 	appState := initTaskManager()
 
-  go appState.process()
+	go appState.setupEventLoop()
+	go appState.setupChannels()
+
 	e.GET("/", func(c echo.Context) error {
 		log.Info().Msg("Recived healthcheck")
 		return c.String(http.StatusOK, "Service is up")
+	})
+
+	e.PUT("/close", func(c echo.Context) error {
+		go func() {
+			time.Sleep(1 * time.Second) // Simulate work
+			os.Exit(0)
+		}()
+		return c.String(http.StatusOK, "Service shutting down")
 	})
 
 	e.PUT("/task", func(c echo.Context) error {

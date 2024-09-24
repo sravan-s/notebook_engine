@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -29,17 +30,20 @@ type (
 	PriorityQueue []string
 	BusyQueue     map[string]bool
 	TaskManager   struct {
-		BusyQueue     BusyQueue
-		TaskQueue     TaskQueue
-		PriorityQueue PriorityQueue
+		Mutex          sync.Mutex
+		BusyQueue      BusyQueue
+		TaskQueue      TaskQueue
+		PriorityQueue  PriorityQueue
+		AddTaskChannel chan Task
 	}
 )
 
 func initTaskManager() TaskManager {
 	return TaskManager{
-		TaskQueue:     make(TaskQueue),
-		BusyQueue:     make(BusyQueue),
-		PriorityQueue: make(PriorityQueue, 0),
+		TaskQueue:      make(TaskQueue),
+		BusyQueue:      make(BusyQueue),
+		PriorityQueue:  make(PriorityQueue, 0),
+		AddTaskChannel: make(chan Task),
 	}
 }
 
@@ -54,8 +58,7 @@ func (tm *TaskManager) addTask(task Task) error {
 		if _, exists := tm.TaskQueue[task.notebook_id]; exists {
 			return errors.New("vm already exists for notebook, we are not doing multiple VMs yet")
 		}
-		tm.TaskQueue[task.notebook_id] = append(tm.TaskQueue[task.notebook_id], task)
-		tm.PriorityQueue = append(tm.PriorityQueue, task.notebook_id)
+		tm.AddTaskChannel <- task
 		return nil
 	case STOP_VM:
 		log.Info().Msgf("adding %v to STOP_VM queue", task)
@@ -63,8 +66,7 @@ func (tm *TaskManager) addTask(task Task) error {
 			errorMsg := fmt.Sprintf("notebook with id %v is not running", task.notebook_id)
 			return errors.New(errorMsg)
 		}
-		tm.TaskQueue[task.notebook_id] = append(tm.TaskQueue[task.notebook_id], task)
-		tm.PriorityQueue = append(tm.PriorityQueue, task.notebook_id)
+		tm.AddTaskChannel <- task
 		return nil
 	case RUN_PARAGRAPH:
 		log.Info().Msgf("adding %v to RUN_PARAGRAPH queue", task)
@@ -76,9 +78,7 @@ func (tm *TaskManager) addTask(task Task) error {
 				paragraph_id: "",
 				code:         "",
 			}
-			tm.TaskQueue[task.notebook_id] = append(tm.TaskQueue[task.notebook_id], createVm)
-			tm.PriorityQueue = append(tm.PriorityQueue, task.notebook_id)
-			log.Info().Msgf("/n/n/n PriorityQueue Added: %v", tm)
+			tm.AddTaskChannel <- createVm
 		}
 		if task.paragraph_id == "" {
 			return errors.New("paragraph_id missing")
@@ -87,8 +87,7 @@ func (tm *TaskManager) addTask(task Task) error {
 			return errors.New("no code to execute")
 		}
 
-		tm.PriorityQueue = append(tm.PriorityQueue, task.notebook_id)
-		tm.TaskQueue[task.notebook_id] = append(tm.TaskQueue[task.notebook_id], task)
+		tm.AddTaskChannel <- task
 		return nil
 	default:
 		errorMsg := fmt.Sprintf("unknown task %v", task)
@@ -97,16 +96,17 @@ func (tm *TaskManager) addTask(task Task) error {
 	}
 }
 
-func findNextFreeNotebookIdx(tm TaskManager) int {
-	for i := 0; i < len(tm.PriorityQueue); i++ {
-		current_notebook := tm.PriorityQueue[i]
-		// current_notebook is already busy
-		if tm.BusyQueue[current_notebook] {
-			continue
-		}
-		return i
+func (tm *TaskManager) setupChannels() {
+	for task := range tm.AddTaskChannel {
+		tm.Mutex.Lock()
+
+		tm.TaskQueue[task.notebook_id] = append(tm.TaskQueue[task.notebook_id], task)
+		tm.PriorityQueue = append(tm.PriorityQueue, task.notebook_id)
+		log.Info().Msgf("Task %v added to the queue\n", task)
+
+		tm.Mutex.Unlock()
+
 	}
-	return -1
 }
 
 // This is an eventloop
@@ -114,17 +114,29 @@ func findNextFreeNotebookIdx(tm TaskManager) int {
 // We check PriorityQueue, get a notebook_id
 // if notebook_id is not busy(ie, true in BusyQueue) -> We process it -> set BusyQueue[notebook_id] => true
 // if notebook_id is busy, we check to next notebook_id in PriorityQueue
-func (tm *TaskManager) process() error {
+func (tm *TaskManager) setupEventLoop() error {
 	for {
-		// uncomment if event loop needs to run in intervals
-		// time.Sleep(5000 * time.Millisecond)
+
 		if len(tm.PriorityQueue) == 0 {
 			continue
 		}
 
-		notebook_index := findNextFreeNotebookIdx(*tm)
+		tm.Mutex.Lock()
+
+		notebook_index := -1
+		for i := 0; i < len(tm.PriorityQueue); i++ {
+			current_notebook := tm.PriorityQueue[i]
+			// current_notebook is already busy
+			if tm.BusyQueue[current_notebook] {
+				continue
+			}
+			notebook_index = i
+			break
+		}
+
 		if notebook_index == -1 {
 			// log.Info().Msg("all notebooks are busy")
+			tm.Mutex.Unlock()
 			continue
 		}
 
@@ -135,15 +147,21 @@ func (tm *TaskManager) process() error {
 		current_notebook_queue, ok := tm.TaskQueue[current_notebook]
 		if !ok {
 			log.Info().Msgf("notebook: %v TaskQueue is not present", current_notebook)
+
+			tm.Mutex.Unlock()
 			continue
 		}
 		if len(current_notebook_queue) < 1 {
 			log.Info().Msgf("notebook: %v TaskQueue is empty", current_notebook)
+
+			tm.Mutex.Unlock()
 			continue
 		}
 		task := current_notebook_queue[0]
 		tm.TaskQueue[current_notebook] = tm.TaskQueue[current_notebook][1:]
 		tm.BusyQueue[current_notebook] = true
+
+		tm.Mutex.Unlock()
 
 		log.Info().Msgf("Executing task: %v", task)
 		switch task.Action {
@@ -162,20 +180,33 @@ func (tm *TaskManager) process() error {
 	}
 }
 
+// I will make firecracker here
 func doStartVM(tm *TaskManager, task Task) {
 	time.Sleep(5000 * time.Millisecond)
+
+	tm.Mutex.Lock()
 	tm.BusyQueue[task.notebook_id] = false
+	tm.Mutex.Unlock()
+
 	log.Info().Msgf("%v created", task)
 }
 
 func doStopVM(tm *TaskManager, task Task) {
 	time.Sleep(500 * time.Millisecond)
+
+	tm.Mutex.Lock()
 	tm.BusyQueue[task.notebook_id] = false
+	tm.Mutex.Unlock()
+
 	log.Info().Msgf("%v deleted", task)
 }
 
 func doRunParagraph(tm *TaskManager, task Task) {
 	time.Sleep(2000 * time.Millisecond)
+
+	tm.Mutex.Lock()
 	tm.BusyQueue[task.notebook_id] = false
+	tm.Mutex.Unlock()
+
 	log.Info().Msgf("%v RAN", task)
 }
