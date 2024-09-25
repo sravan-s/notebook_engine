@@ -35,11 +35,13 @@ type (
 		TaskQueue      TaskQueue
 		PriorityQueue  PriorityQueue
 		AddTaskChannel chan Task
+		webhookurl     string
 	}
 )
 
-func initTaskManager() TaskManager {
+func initTaskManager(webhookurl string) TaskManager {
 	return TaskManager{
+		webhookurl:     webhookurl,
 		TaskQueue:      make(TaskQueue),
 		BusyQueue:      make(BusyQueue),
 		PriorityQueue:  make(PriorityQueue, 0),
@@ -122,8 +124,8 @@ func (tm *TaskManager) setupEventLoop() error {
 		}
 
 		task := Task{notebook_id: ""}
-    // IIFE here for easy defer Mutex.Unlock
-    // Otherwise, I have to always do "Unlock(); continue;" for the loop outside
+		// IIFE here for easy defer Mutex.Unlock
+		// Otherwise, I have to always do "Unlock(); continue;" for the loop outside
 		func() {
 			tm.Mutex.Lock()
 			defer tm.Mutex.Unlock()
@@ -186,26 +188,30 @@ func (tm *TaskManager) setupEventLoop() error {
 // I will make firecracker here
 func doStartVM(tm *TaskManager, task Task) {
 	time.Sleep(5000 * time.Millisecond)
-
 	tm.Mutex.Lock()
 	tm.BusyQueue[task.notebook_id] = false
+	webhookurl := tm.webhookurl
 	tm.Mutex.Unlock()
 
+	go sendToWebHook(webhookurl, task)
 	log.Info().Msgf("%v created", task)
 }
 
+// we shouldnt delete rest of the tasks after deleting the VM
+// imagine, if the next request is "CREATE_VM".
+// Another approach is clear all requests until upcoming "CREATE_VM"
+// If some one use this program for inspiration for some production software,
+// keep that in mind
+// If its "RUN_PARAGRAPH", maybe we start the VM?
 func doStopVM(tm *TaskManager, task Task) {
 	time.Sleep(500 * time.Millisecond)
 
 	tm.Mutex.Lock()
 	tm.BusyQueue[task.notebook_id] = false
-	// we shouldnt delete rest of the tasks after deleting the VM
-	// imagine, if the next request is "CREATE_VM".
-	// Another approach is clear all requests until upcoming "CREATE_VM"
-	// If some one use this program for inspiration for some production software,
-	// keep that in mind
-	// If its "RUN_PARAGRAPH", maybe we start the VM?
+	webhookurl := tm.webhookurl
 	tm.Mutex.Unlock()
+
+	go sendToWebHook(webhookurl, task)
 
 	log.Info().Msgf("%v deleted", task)
 }
@@ -215,7 +221,10 @@ func doRunParagraph(tm *TaskManager, task Task) {
 
 	tm.Mutex.Lock()
 	tm.BusyQueue[task.notebook_id] = false
+	webhookurl := tm.webhookurl
 	tm.Mutex.Unlock()
+
+	go sendToWebHook(webhookurl, task)
 
 	log.Info().Msgf("%v RAN", task)
 }

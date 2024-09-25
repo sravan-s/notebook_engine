@@ -12,9 +12,10 @@ import (
 )
 
 func main() {
+	webHookUrl := goDotEnvVariable("WEB_HOOK_URL")
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	e := echo.New()
-	appState := initTaskManager()
+	appState := initTaskManager(webHookUrl)
 
 	go appState.setupEventLoop()
 	go appState.setupChannels()

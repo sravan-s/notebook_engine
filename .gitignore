@@ -9,6 +9,8 @@
 *.dylib
 notebook-engine.bin
 
+.env
+
 # For building firecracker VM
 linux/assets/
 linux/executer/

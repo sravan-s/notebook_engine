@@ -5,7 +5,7 @@ description="CodeBench agent"
 supervisor="supervise-daemon"
 command="/usr/local/bin/agent"
 pidfile="/run/agent.pid"
-command_user="codebench:codebench"
+command_user="notebook:notebook"
 
 depend() {
 	after net

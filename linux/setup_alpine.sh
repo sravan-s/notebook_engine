@@ -1,3 +1,4 @@
+# maybe do this with nix?
 apk add --no-cache openrc
 apk add --no-cache util-linux
 apk add --no-cache --update nodejs npm
