@@ -121,47 +121,50 @@ func (tm *TaskManager) setupEventLoop() error {
 			continue
 		}
 
-		tm.Mutex.Lock()
-
-		notebook_index := -1
-		for i := 0; i < len(tm.PriorityQueue); i++ {
-			current_notebook := tm.PriorityQueue[i]
-			// current_notebook is already busy
-			if tm.BusyQueue[current_notebook] {
-				continue
+		task := Task{notebook_id: ""}
+    // IIFE here for easy defer Mutex.Unlock
+    // Otherwise, I have to always do "Unlock(); continue;" for the loop outside
+		func() {
+			tm.Mutex.Lock()
+			defer tm.Mutex.Unlock()
+			notebook_index := -1
+			for i := 0; i < len(tm.PriorityQueue); i++ {
+				current_notebook := tm.PriorityQueue[i]
+				// current_notebook is already busy
+				if tm.BusyQueue[current_notebook] {
+					continue
+				}
+				notebook_index = i
+				break
 			}
-			notebook_index = i
-			break
-		}
 
-		if notebook_index == -1 {
-			// log.Info().Msg("all notebooks are busy")
-			tm.Mutex.Unlock()
+			if notebook_index == -1 {
+				// log.Info().Msg("all notebooks are busy")
+				return
+			}
+
+			current_notebook := tm.PriorityQueue[notebook_index]
+			tm.PriorityQueue = append(tm.PriorityQueue[:notebook_index], tm.PriorityQueue[notebook_index+1:]...)
+			log.Info().Msgf("current_notebook: %v", current_notebook)
+
+			current_notebook_queue, ok := tm.TaskQueue[current_notebook]
+			if !ok {
+				log.Info().Msgf("notebook: %v TaskQueue is not present", current_notebook)
+				return
+			}
+			if len(current_notebook_queue) < 1 {
+				log.Info().Msgf("notebook: %v TaskQueue is empty", current_notebook)
+				return
+			}
+			task = current_notebook_queue[0]
+			tm.TaskQueue[current_notebook] = tm.TaskQueue[current_notebook][1:]
+			tm.BusyQueue[current_notebook] = true
+		}()
+
+		if task.notebook_id == "" {
+			// log.Info().Msgf("Task is empty %v", task)
 			continue
 		}
-
-		current_notebook := tm.PriorityQueue[notebook_index]
-		tm.PriorityQueue = append(tm.PriorityQueue[:notebook_index], tm.PriorityQueue[notebook_index+1:]...)
-		log.Info().Msgf("current_notebook: %v", current_notebook)
-
-		current_notebook_queue, ok := tm.TaskQueue[current_notebook]
-		if !ok {
-			log.Info().Msgf("notebook: %v TaskQueue is not present", current_notebook)
-
-			tm.Mutex.Unlock()
-			continue
-		}
-		if len(current_notebook_queue) < 1 {
-			log.Info().Msgf("notebook: %v TaskQueue is empty", current_notebook)
-
-			tm.Mutex.Unlock()
-			continue
-		}
-		task := current_notebook_queue[0]
-		tm.TaskQueue[current_notebook] = tm.TaskQueue[current_notebook][1:]
-		tm.BusyQueue[current_notebook] = true
-
-		tm.Mutex.Unlock()
 
 		log.Info().Msgf("Executing task: %v", task)
 		switch task.Action {
@@ -196,6 +199,12 @@ func doStopVM(tm *TaskManager, task Task) {
 
 	tm.Mutex.Lock()
 	tm.BusyQueue[task.notebook_id] = false
+	// we shouldnt delete rest of the tasks after deleting the VM
+	// imagine, if the next request is "CREATE_VM".
+	// Another approach is clear all requests until upcoming "CREATE_VM"
+	// If some one use this program for inspiration for some production software,
+	// keep that in mind
+	// If its "RUN_PARAGRAPH", maybe we start the VM?
 	tm.Mutex.Unlock()
 
 	log.Info().Msgf("%v deleted", task)
