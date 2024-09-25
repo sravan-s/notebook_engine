@@ -187,13 +187,16 @@ func (tm *TaskManager) setupEventLoop() error {
 
 // I will make firecracker here
 func doStartVM(tm *TaskManager, task Task) {
-	time.Sleep(5000 * time.Millisecond)
+	err := startVm()
 	tm.Mutex.Lock()
 	tm.BusyQueue[task.notebook_id] = false
 	webhookurl := tm.webhookurl
 	tm.Mutex.Unlock()
-
-	go sendToWebHook(webhookurl, task)
+	if err != nil {
+		go sendToWebHook(webhookurl, task, true)
+		log.Error().Msgf("%v creation failed", err)
+	}
+	go sendToWebHook(webhookurl, task, false)
 	log.Info().Msgf("%v created", task)
 }
 
@@ -211,7 +214,7 @@ func doStopVM(tm *TaskManager, task Task) {
 	webhookurl := tm.webhookurl
 	tm.Mutex.Unlock()
 
-	go sendToWebHook(webhookurl, task)
+	go sendToWebHook(webhookurl, task, false)
 
 	log.Info().Msgf("%v deleted", task)
 }
@@ -224,7 +227,7 @@ func doRunParagraph(tm *TaskManager, task Task) {
 	webhookurl := tm.webhookurl
 	tm.Mutex.Unlock()
 
-	go sendToWebHook(webhookurl, task)
+	go sendToWebHook(webhookurl, task, false)
 
 	log.Info().Msgf("%v RAN", task)
 }

@@ -20,15 +20,19 @@ func goDotEnvVariable(key string) string {
 	return os.Getenv(key)
 }
 
-func sendToWebHook(webhookurl string, task Task) {
+func sendToWebHook(webhookurl string, task Task, failed bool) {
 	taskJson, err := json.Marshal(task)
 	if err != nil {
 		log.Error().Err(err).Msg("Error marshalling task")
 		return
 	}
 
+	action := string(task.Action)
+	if failed {
+		action = action + "_FAILED"
+	}
 	payload, err := json.Marshal(map[string]string{
-		"action":  string(task.Action),
+		"action":  action,
 		"payload": string(taskJson), // Convert byte array to string
 	})
 	if err != nil {
