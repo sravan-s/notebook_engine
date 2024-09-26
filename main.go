@@ -20,6 +20,12 @@ func main() {
 	go appState.setupEventLoop()
 	go appState.setupChannels()
 
+	/**
+	  Todo: Simple APIs ->
+	  To get data about execution status of given notebook_id
+	  To get std_in and std_error of given notebook_id (see ./linux/assets/{notebook_id}stdout.log, {notebook_id}std_error.log)
+	  **/
+
 	e.GET("/", func(c echo.Context) error {
 		log.Info().Msg("Recived healthcheck")
 		return c.String(http.StatusOK, "Service is up")

@@ -39,6 +39,7 @@ type (
 	BusyQueue     map[string]bool
 	TaskManager   struct {
 		// How about making this a seperate list of mutexes? stored in some kind of singleton
+		// Probably can save bunch of time on lock/unlock
 		VMPool         VMPool
 		Mutex          sync.Mutex
 		BusyQueue      BusyQueue
@@ -203,16 +204,17 @@ func (tm *TaskManager) setupEventLoop() error {
 func doStartVM(tm *TaskManager, task Task) {
 	machine, ctx, err := startVm(task.notebook_id)
 	tm.Mutex.Lock()
+	defer tm.Mutex.Unlock()
 	tm.BusyQueue[task.notebook_id] = false
 	webhookurl := tm.webhookurl
 	tm.VMPool[task.notebook_id] = MachineContext{
 		Machine: machine,
 		Context: ctx,
 	}
-	tm.Mutex.Unlock()
 	if err != nil {
 		go sendToWebHook(webhookurl, task, true)
 		log.Error().Msgf("%v creation failed", err)
+		return
 	}
 	go sendToWebHook(webhookurl, task, false)
 	log.Info().Msgf("%v created", task)
@@ -228,16 +230,18 @@ func doStopVM(tm *TaskManager, task Task) {
 	time.Sleep(500 * time.Millisecond)
 
 	tm.Mutex.Lock()
+	defer tm.Mutex.Unlock()
 	tm.BusyQueue[task.notebook_id] = false
 	webhookurl := tm.webhookurl
 	vmpool, ok := tm.VMPool[task.notebook_id]
 	if !ok {
 		go sendToWebHook(webhookurl, task, true)
-		log.Error().Msgf("cannot STOP_VM: %v", task)
+		log.Error().Msgf("cannot STOP_VM because its not in pool: %v", task)
+		return
 	}
 	vmpool.Machine.Shutdown(vmpool.Context)
 	delete(tm.VMPool, task.notebook_id)
-	tm.Mutex.Unlock()
+	// maybe delete the files from ./linux/assets/{notebook_id}:log, ext4 etc ~
 
 	go sendToWebHook(webhookurl, task, false)
 
