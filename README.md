@@ -10,6 +10,9 @@ Fill enviornment variables to `.env` (see `.env.example` for list of env variabl
 - We setup an example_webhook in ./example_webhook/
 If you want to use it for local development, setup its URL(http://localhost:8080/event) in .env
 
+Install CNI plugins see `./CNI.README.MD`
+This is for setting up networking between virtual machines
+
 ---
 If you use tmux for development ->
 ```
@@ -23,5 +26,7 @@ nix devlop
 
 To build -> Open nix shell ->
 ```
-go build -o ./notebook-engine.bin ./src/index.go
+go build -o ./notebook-engine.bin .
+sudo ./notebook-engine.bin
 ```
+> sudo is required to setup networking
