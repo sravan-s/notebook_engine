@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/rs/zerolog/log"
 )
 
@@ -25,11 +27,19 @@ type Task struct {
 	code         string
 }
 
+type MachineContext struct {
+	Machine *firecracker.Machine
+	Context context.Context
+}
+
 type (
 	TaskQueue     map[string][]Task
+	VMPool        map[string]MachineContext
 	PriorityQueue []string
 	BusyQueue     map[string]bool
 	TaskManager   struct {
+		// How about making this a seperate list of mutexes? stored in some kind of singleton
+		VMPool         VMPool
 		Mutex          sync.Mutex
 		BusyQueue      BusyQueue
 		TaskQueue      TaskQueue
@@ -41,6 +51,7 @@ type (
 
 func initTaskManager(webhookurl string) TaskManager {
 	return TaskManager{
+		VMPool:         make(VMPool),
 		webhookurl:     webhookurl,
 		TaskQueue:      make(TaskQueue),
 		BusyQueue:      make(BusyQueue),
@@ -146,7 +157,10 @@ func (tm *TaskManager) setupEventLoop() error {
 			}
 
 			current_notebook := tm.PriorityQueue[notebook_index]
-			tm.PriorityQueue = append(tm.PriorityQueue[:notebook_index], tm.PriorityQueue[notebook_index+1:]...)
+			tm.PriorityQueue = append(
+				tm.PriorityQueue[:notebook_index],
+				tm.PriorityQueue[notebook_index+1:]...,
+			)
 			log.Info().Msgf("current_notebook: %v", current_notebook)
 
 			current_notebook_queue, ok := tm.TaskQueue[current_notebook]
@@ -187,11 +201,14 @@ func (tm *TaskManager) setupEventLoop() error {
 
 // I will make firecracker here
 func doStartVM(tm *TaskManager, task Task) {
-	machine, err := startVm()
-	log.Info().Msgf("%v", machine)
+	machine, ctx, err := startVm(task.notebook_id)
 	tm.Mutex.Lock()
 	tm.BusyQueue[task.notebook_id] = false
 	webhookurl := tm.webhookurl
+	tm.VMPool[task.notebook_id] = MachineContext{
+		Machine: machine,
+		Context: ctx,
+	}
 	tm.Mutex.Unlock()
 	if err != nil {
 		go sendToWebHook(webhookurl, task, true)
@@ -213,6 +230,13 @@ func doStopVM(tm *TaskManager, task Task) {
 	tm.Mutex.Lock()
 	tm.BusyQueue[task.notebook_id] = false
 	webhookurl := tm.webhookurl
+	vmpool, ok := tm.VMPool[task.notebook_id]
+	if !ok {
+		go sendToWebHook(webhookurl, task, true)
+		log.Error().Msgf("cannot STOP_VM: %v", task)
+	}
+	vmpool.Machine.Shutdown(vmpool.Context)
+	delete(tm.VMPool, task.notebook_id)
 	tm.Mutex.Unlock()
 
 	go sendToWebHook(webhookurl, task, false)

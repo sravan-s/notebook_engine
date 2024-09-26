@@ -7,7 +7,6 @@ import (
 
 	"github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
@@ -25,8 +24,7 @@ func copyFile(from string, to string) error {
 	return nil
 }
 
-func startVm() (*firecracker.Machine, error) {
-	uuid := uuid.New().String()
+func startVm(uuid string) (*firecracker.Machine, context.Context, error) {
 	log.Info().Msgf("making a vm with ID %v", uuid)
 	// maybe make the below configurable
 	const PATH_TO_KERNAL = "./linux/assets/vmlinux"
@@ -35,7 +33,7 @@ func startVm() (*firecracker.Machine, error) {
 	err := copyFile("./linux/assets/rootfs.ext4", pathToRootfs)
 	if err != nil {
 		log.Error().Msgf("failed to copy filesystem: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 
 	stdoutPath := "./linux/assets/" + uuid + "stdout.log"
@@ -57,13 +55,13 @@ func startVm() (*firecracker.Machine, error) {
 	stdout, err := os.OpenFile(stdoutPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		log.Error().Msgf("failed to create stdout file: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 
 	stderr, err := os.OpenFile(stderrPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		log.Error().Msgf("failed to create stderr file: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 
 	ctx := context.Background()
@@ -80,7 +78,7 @@ func startVm() (*firecracker.Machine, error) {
 	m, err := firecracker.NewMachine(ctx, cfg, firecracker.WithProcessRunner(cmd))
 	if err != nil {
 		log.Error().Msgf("failed to create new machine: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 
 	log.Info().Msgf("Finish creating VM : %v", m)
@@ -89,7 +87,7 @@ func startVm() (*firecracker.Machine, error) {
 
 	if err := m.Start(ctx); err != nil {
 		log.Error().Msgf("failed to initialize machine: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 	// wait for VMM to execute
 	// if err := m.Wait(ctx); err != nil {
@@ -97,12 +95,5 @@ func startVm() (*firecracker.Machine, error) {
 	//	return err
 	// }
 
-	return m, nil
+	return m, ctx, nil
 }
-
-/*
-func stopVm(m *firecracker.Machine) error {
-	log.Info().Msgf("Shutting down VM: %v", m)
-	m.Shutdown()
-}
-*/
