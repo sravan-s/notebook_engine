@@ -207,15 +207,16 @@ func doStartVM(tm *TaskManager, task Task) {
 	defer tm.Mutex.Unlock()
 	tm.BusyQueue[task.notebook_id] = false
 	webhookurl := tm.webhookurl
-	tm.VMPool[task.notebook_id] = MachineContext{
-		Machine: machine,
-		Context: ctx,
-	}
 	if err != nil {
 		go sendToWebHook(webhookurl, task, true)
 		log.Error().Msgf("%v creation failed", err)
 		return
 	}
+	tm.VMPool[task.notebook_id] = MachineContext{
+		Machine: machine,
+		Context: ctx,
+	}
+	log.Info().Msgf("aaaaaaaa  machine %v, ctx %v", machine, ctx)
 	go sendToWebHook(webhookurl, task, false)
 	log.Info().Msgf("%v created", task)
 }
@@ -239,7 +240,15 @@ func doStopVM(tm *TaskManager, task Task) {
 		log.Error().Msgf("cannot STOP_VM because its not in pool: %v", task)
 		return
 	}
-	vmpool.Machine.Shutdown(vmpool.Context)
+	log.Info().Msgf("pool %v", tm.VMPool)
+	log.Info().Msgf("context %v", vmpool)
+	shutdown_fail := vmpool.Machine.Shutdown(vmpool.Context)
+	if shutdown_fail != nil {
+		go sendToWebHook(webhookurl, task, true)
+		log.Error().
+			Msgf("cannot STOP_VM: %v because its not in pool: %v", task, shutdown_fail)
+		return
+	}
 	delete(tm.VMPool, task.notebook_id)
 	// maybe delete the files from ./linux/assets/{notebook_id}:log, ext4 etc ~
 
@@ -248,6 +257,10 @@ func doStopVM(tm *TaskManager, task Task) {
 	log.Info().Msgf("%v deleted", task)
 }
 
+/*
+Donot run if VM is not running
+Do not add CREATE_VM in this step, do it in API handler in main
+*/
 func doRunParagraph(tm *TaskManager, task Task) {
 	time.Sleep(2000 * time.Millisecond)
 

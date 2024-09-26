@@ -48,6 +48,17 @@ func startVm(uuid string) (*firecracker.Machine, context.Context, error) {
 			VcpuCount:  firecracker.Int64(4),
 			MemSizeMib: firecracker.Int64(256),
 		},
+		// https://k-jingyang.github.io/firecracker/2024/06/15/firecracker-bridge.html
+		/*
+			    NetworkInterfaces: firecracker.NetworkInterfaces{
+						firecracker.NetworkInterface{
+							AllowMMDS: true,
+							CNIConfiguration: &firecracker.CNIConfiguration{
+								NetworkName: "fcnet",
+							},
+						},
+					},
+		*/
 	}
 
 	log.Info().Msgf("Finish creating VM config: %v", cfg)
