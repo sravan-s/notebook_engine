@@ -187,7 +187,8 @@ func (tm *TaskManager) setupEventLoop() error {
 
 // I will make firecracker here
 func doStartVM(tm *TaskManager, task Task) {
-	err := startVm()
+	machine, err := startVm()
+	log.Info().Msgf("%v", machine)
 	tm.Mutex.Lock()
 	tm.BusyQueue[task.notebook_id] = false
 	webhookurl := tm.webhookurl

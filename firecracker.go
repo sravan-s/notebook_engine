@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"os"
-	"time"
 
 	"github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
@@ -26,7 +25,7 @@ func copyFile(from string, to string) error {
 	return nil
 }
 
-func startVm() error {
+func startVm() (*firecracker.Machine, error) {
 	uuid := uuid.New().String()
 	log.Info().Msgf("making a vm with ID %v", uuid)
 	// maybe make the below configurable
@@ -36,7 +35,7 @@ func startVm() error {
 	err := copyFile("./linux/assets/rootfs.ext4", pathToRootfs)
 	if err != nil {
 		log.Error().Msgf("failed to copy filesystem: %v", err)
-		return err
+		return nil, err
 	}
 
 	stdoutPath := "./linux/assets/" + uuid + "stdout.log"
@@ -58,13 +57,13 @@ func startVm() error {
 	stdout, err := os.OpenFile(stdoutPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		log.Error().Msgf("failed to create stdout file: %v", err)
-		return err
+		return nil, err
 	}
 
 	stderr, err := os.OpenFile(stderrPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		log.Error().Msgf("failed to create stderr file: %v", err)
-		return err
+		return nil, err
 	}
 
 	ctx := context.Background()
@@ -81,7 +80,7 @@ func startVm() error {
 	m, err := firecracker.NewMachine(ctx, cfg, firecracker.WithProcessRunner(cmd))
 	if err != nil {
 		log.Error().Msgf("failed to create new machine: %v", err)
-		return err
+		return nil, err
 	}
 
 	log.Info().Msgf("Finish creating VM : %v", m)
@@ -90,21 +89,20 @@ func startVm() error {
 
 	if err := m.Start(ctx); err != nil {
 		log.Error().Msgf("failed to initialize machine: %v", err)
-		return err
+		return nil, err
 	}
-
-	log.Info().Msgf("Start execute VM: %v", m)
-	time.Sleep(2000 * time.Millisecond)
-
 	// wait for VMM to execute
 	// if err := m.Wait(ctx); err != nil {
 	//	log.Error().Msgf("wait for VMM to execute: %v", err)
 	//	return err
 	// }
 
-	log.Info().Msgf("Shutting down VM: %v", m)
-
-	m.Shutdown(ctx)
-
-	return nil
+	return m, nil
 }
+
+/*
+func stopVm(m *firecracker.Machine) error {
+	log.Info().Msgf("Shutting down VM: %v", m)
+	m.Shutdown()
+}
+*/
