@@ -216,7 +216,6 @@ func doStartVM(tm *TaskManager, task Task) {
 		Machine: machine,
 		Context: ctx,
 	}
-	log.Info().Msgf("aaaaaaaa  machine %v, ctx %v", machine, ctx)
 	go sendToWebHook(webhookurl, task, false)
 	log.Info().Msgf("%v created", task)
 }
