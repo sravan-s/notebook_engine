@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/firecracker-microvm/firecracker-go-sdk"
@@ -10,15 +11,46 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func copyFile(from string, to string) error {
-	data, err := os.ReadFile(from)
-	if err != nil {
-		log.Error().Msgf("%v", err)
-		return err
+const (
+	PATH_TO_NETWORK        = "/etc/cni/conf.d/"
+	NETWORK_CONF_EXTENTION = ".conflist"
+)
+
+/*
+Creates file with name at given PathTo
+// should run sudo ip link delete mynet4242 to remove bridges if you cahnge subnet
+*/
+func placeConfig(name string, pathTo string) error {
+	template := `
+  {
+		"name": "fcnet%s",
+		"cniVersion": "0.4.0",
+		"plugins": [
+			{
+				"type": "bridge",
+				"ipMasq": true,
+				"bridge":"mynet%s",
+				"isDefaultGateway": true,
+				"ipam": {
+					"type": "host-local",
+					"subnet": "192.168.127.0/24",
+					"resolvConf": "/etc/resolv.conf"
+				}
+			},
+			{
+				"type": "firewall"
+			},
+			{
+				"type": "tc-redirect-tap"
+			}
+		]
 	}
-	err = os.WriteFile(to, data, 0o644)
+  `
+	configStr := fmt.Sprintf(template, name, name)
+	configBuff := []byte(configStr)
+	err := os.WriteFile(pathTo+name+NETWORK_CONF_EXTENTION, configBuff, 0o644)
 	if err != nil {
-		log.Error().Msgf("%v", err)
+		log.Error().Msgf("create cni config failed %v", err)
 		return err
 	}
 	return nil
@@ -29,6 +61,10 @@ func startVm(uuid string) (*firecracker.Machine, context.Context, error) {
 	// maybe make the below configurable
 	const PATH_TO_KERNAL = "./linux/assets/vmlinux"
 	socketPath := "./linux/assets/firecracker" + uuid + ".sock"
+	if err := deleteFileIfExists(socketPath); err != nil {
+		log.Error().Msgf("startVm: failed to remove exisiting socket: %v", err)
+		// donot need to exit, maybe file didnt exist
+	}
 	pathToRootfs := "./linux/assets/" + uuid + ".ext4"
 	err := copyFile("./linux/assets/rootfs.ext4", pathToRootfs)
 	if err != nil {
@@ -38,6 +74,16 @@ func startVm(uuid string) (*firecracker.Machine, context.Context, error) {
 
 	stdoutPath := "./linux/assets/" + uuid + "stdout.log"
 	stderrPath := "./linux/assets/" + uuid + "stderror.log"
+
+	networkName := "fcnet" + uuid
+	ifName := "veth" + uuid
+
+	err = placeConfig(uuid, PATH_TO_NETWORK)
+	if err != nil {
+		log.Error().Msgf("failed to create config: %v", err)
+		return nil, nil, err
+	}
+
 	//--
 
 	cfg := firecracker.Config{
@@ -53,8 +99,8 @@ func startVm(uuid string) (*firecracker.Machine, context.Context, error) {
 			firecracker.NetworkInterface{
 				AllowMMDS: true,
 				CNIConfiguration: &firecracker.CNIConfiguration{
-					NetworkName: "fcnet",
-					IfName:      "veth0",
+					NetworkName: networkName,
+					IfName:      ifName,
 				},
 			},
 		},
@@ -99,11 +145,15 @@ func startVm(uuid string) (*firecracker.Machine, context.Context, error) {
 		log.Error().Msgf("failed to initialize machine: %v", err)
 		return nil, nil, err
 	}
-	// wait for VMM to execute
-	// if err := m.Wait(ctx); err != nil {
-	//	log.Error().Msgf("wait for VMM to execute: %v", err)
-	//	return err
-	// }
+
+	ip := m.Cfg.NetworkInterfaces[0].StaticConfiguration.IPConfiguration.IPAddr
+	log.Info().Msgf("\n\n\nIp--- %v \n", ip)
 
 	return m, ctx, nil
+}
+
+func shutdownCleanup(uuid string) error {
+	// maybe remove /var/lib/cni on program_shutdown? also - /etc/cni/conf.d/
+	// see cleanup-cni.sh
+	return os.Remove(PATH_TO_NETWORK + uuid + NETWORK_CONF_EXTENTION)
 }

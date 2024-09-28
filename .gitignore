@@ -14,7 +14,6 @@ notebook-engine.bin
 # For building firecracker VM
 linux/assets/
 linux/executer/
-linux/agent/
 
 agent/server
 

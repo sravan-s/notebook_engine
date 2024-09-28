@@ -1,4 +1,4 @@
-## Development
+## Setup
 1. Setup nix
 We use nix https://nixos.org/ for reproducible envs.
 Install it.
@@ -29,12 +29,19 @@ tmuxp load .
 
 ----
 
-## To start dev enviornment(nix shell) ->
+## Development
+
+1. Setup enviornment(nix shell) ->
 ```
 nix devlop
 ```
 
-To build -> Open nix shell ->
+2. Write code
+
+3. To build
+
+Make sure you are in nix shell; run the following code:
+
 ```
 go build -o ./notebook-engine.bin .
 sudo ./notebook-engine.bin

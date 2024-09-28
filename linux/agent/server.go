@@ -24,6 +24,7 @@ type (
 var js_program_template string
 
 func main() {
+	fmt.Println("starting server")
 	e := echo.New()
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello world")
@@ -62,5 +63,5 @@ func main() {
 		// Return the result of the executed JavaScript code
 		return c.String(http.StatusOK, string(output))
 	})
-	e.Logger.Fatal(e.Start(":1323"))
+	e.Logger.Fatal(e.Start(":80"))
 }

@@ -251,6 +251,10 @@ func doStopVM(tm *TaskManager, task Task) {
 	delete(tm.VMPool, task.notebook_id)
 	// maybe delete the files from ./linux/assets/{notebook_id}:log, ext4 etc ~
 
+	if err := shutdownCleanup(task.notebook_id); err != nil {
+		log.Error().Msgf("in STOP_VM, couldnt cleanup network config: %v", err)
+	}
+
 	go sendToWebHook(webhookurl, task, false)
 
 	log.Info().Msgf("%v deleted", task)

@@ -3,7 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
+
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -26,6 +29,41 @@ func validateId(id string) error {
 	re := regexp.MustCompile(SUPPORTED_PATTERN)
 	if !re.MatchString(id) {
 		return errors.New("id must contain only a..z | A..Z | 0..9")
+	}
+	return nil
+}
+
+func copyFile(from string, to string) error {
+	data, err := os.ReadFile(from)
+	if err != nil {
+		log.Error().Msgf("%v", err)
+		return err
+	}
+	err = os.WriteFile(to, data, 0o644)
+	if err != nil {
+		log.Error().Msgf("%v", err)
+		return err
+	}
+	return nil
+}
+
+func deleteFileIfExists(filePath string) error {
+	// Check if the file exists
+	if _, err := os.Stat(filePath); err == nil {
+		// File exists, so delete it
+		err = os.Remove(filePath)
+		if err != nil {
+			log.Error().Msgf("failed to delete file: %s", err)
+			return err
+		}
+		fmt.Println("File deleted successfully")
+	} else if os.IsNotExist(err) {
+		// File does not exist, do nothing
+		fmt.Println("File does not exist")
+	} else {
+		// Some other error occurred while checking
+		log.Error().Msgf("failed to check if file exists: %s", err)
+		return err
 	}
 	return nil
 }
