@@ -19,6 +19,7 @@ docker run -i --rm \
     -v /tmp/my-rootfs:/my-rootfs \
     -v "$(pwd)/assets/agent:/usr/local/bin/agent" \
     -v "$(pwd)/openrc-service.sh:/etc/init.d/agent" \
+    -v "$(pwd)/Caddyfile:/etc/caddy/Caddyfile" \
     alpine sh <setup_alpine.sh
 
 mv rootfs.ext4 ./assets/rootfs.ext4

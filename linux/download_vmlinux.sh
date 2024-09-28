@@ -4,6 +4,9 @@ latest=$(wget "http://spec.ccfc.min.s3.amazonaws.com/?prefix=firecracker-ci/v1.9
 
 FILE="./assets/vmlinux"
 
+# keep vmlinux file in user root and uncomment to avoid caching
+# cp ~/vmlinux ./assets/vmlinux
+
 # Check if the file exists
 if [ -f "$FILE" ]; then
   echo "$FILE exists."

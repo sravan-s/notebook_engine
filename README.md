@@ -36,9 +36,20 @@ tmuxp load .
 nix devlop
 ```
 
-2. Write code
+2. Write code/make changes
 
-3. To build
+3. To build VM
+
+You need a firecracker VM with preinstalled agent
+Download linux binary(alpine), setup a file system, mount it on docker
+install and setup some services, open some port
+
+```
+cd linux; ./build.sh
+```
+^ this needs root permission
+
+4. To build the software
 
 Make sure you are in nix shell; run the following code:
 

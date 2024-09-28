@@ -27,7 +27,7 @@ func main() {
 	fmt.Println("starting server")
 	e := echo.New()
 	e.GET("/", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello world")
+		return c.String(http.StatusOK, "I am a go agent inside firecracker VM")
 	})
 	e.PUT("/:notebook_id/:paragraph_id/exe", func(c echo.Context) (err error) {
 		notebook_id := c.Param("notebook_id")
@@ -63,5 +63,5 @@ func main() {
 		// Return the result of the executed JavaScript code
 		return c.String(http.StatusOK, string(output))
 	})
-	e.Logger.Fatal(e.Start(":80"))
+	e.Logger.Fatal(e.Start(":8081"))
 }

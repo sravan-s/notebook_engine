@@ -1,0 +1,11 @@
+:8080 {
+	reverse_proxy :8081
+}
+
+:1234 {
+	respond "I am 1234"
+}
+
+:80 {
+	respond "Hello world"
+}

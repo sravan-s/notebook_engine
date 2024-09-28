@@ -33,7 +33,7 @@ func placeConfig(name string, pathTo string) error {
 				"isDefaultGateway": true,
 				"ipam": {
 					"type": "host-local",
-					"subnet": "192.168.127.0/24",
+					"subnet": "172.16.0.0/24",
 					"resolvConf": "/etc/resolv.conf"
 				}
 			},
@@ -92,7 +92,7 @@ func startVm(uuid string) (*firecracker.Machine, context.Context, error) {
 		Drives:          firecracker.NewDrivesBuilder(pathToRootfs).Build(),
 		MachineCfg: models.MachineConfiguration{
 			VcpuCount:  firecracker.Int64(4),
-			MemSizeMib: firecracker.Int64(256),
+			MemSizeMib: firecracker.Int64(512),
 		},
 		// https://k-jingyang.github.io/firecracker/2024/06/15/firecracker-bridge.html
 		NetworkInterfaces: firecracker.NetworkInterfaces{
