@@ -47,7 +47,7 @@ const context = (notebook, paragraph) => {
 
 function main () {
   // to be filled through go
-  let Nb = Object.freeze(context(%s, %s));
+  let Nb = Object.freeze(context("%s", "%s"));
   // code goes here
   %s
 }
