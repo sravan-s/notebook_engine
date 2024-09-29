@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -203,6 +204,7 @@ func (tm *TaskManager) setupEventLoop() error {
 // I will make firecracker here
 func doStartVM(tm *TaskManager, task Task) {
 	machine, ctx, err := startVm(task.notebook_id)
+	// is okay, becyase startVm finish in <10 ms
 	tm.Mutex.Lock()
 	defer tm.Mutex.Unlock()
 	tm.BusyQueue[task.notebook_id] = false
@@ -265,14 +267,36 @@ Donot run if VM is not running
 Do not add CREATE_VM in this step, do it in API handler in main
 */
 func doRunParagraph(tm *TaskManager, task Task) {
-	time.Sleep(2000 * time.Millisecond)
+	defer func() {
+		log.Info().Msg("cleanup after doRunParagraph")
+		// here, its better to have fine grained lock
+		tm.Mutex.Lock()
+		tm.BusyQueue[task.notebook_id] = false
+		tm.Mutex.Unlock()
+	}()
 
 	tm.Mutex.Lock()
-	tm.BusyQueue[task.notebook_id] = false
 	webhookurl := tm.webhookurl
+	vmIp := tm.VMPool[task.notebook_id].
+		Machine.Cfg.NetworkInterfaces[0].
+		StaticConfiguration.IPConfiguration.IPAddr.IP.
+		String()
 	tm.Mutex.Unlock()
 
-	go sendToWebHook(webhookurl, task, false)
+	payload, err := json.Marshal(task)
+	if err != nil {
+		log.Warn().Msgf("doRunParagraph: `json.Marshal error` %v", err)
+	}
+	url := fmt.Sprintf("http://%s:8081/%s/%s/exe", vmIp, task.notebook_id, task.paragraph_id)
+	response, err := httpPut(url, payload)
+	log.Info().Msgf("doRunParagraph: response - %v", response)
 
+	if err != nil {
+		log.Error().Msgf("doRunParagraph: error - %v", err)
+		go sendToWebHook(webhookurl, task, false)
+		return
+	}
+
+	go sendToWebHook(webhookurl, task, false)
 	log.Info().Msgf("%v RAN", task)
 }

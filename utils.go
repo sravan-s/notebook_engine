@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"regexp"
 
@@ -66,4 +68,21 @@ func deleteFileIfExists(filePath string) error {
 		return err
 	}
 	return nil
+}
+
+func httpPut(url string, payload []byte) (*http.Response, error) {
+	log.Info().Msgf("httpPut to %v %v", url, payload)
+	client := &http.Client{}
+
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	response, err := client.Do(req)
+	response.Body.Close()
+
+	return response, err
 }
